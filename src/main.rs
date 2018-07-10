@@ -64,7 +64,7 @@ impl App {
         }
 
         // update right paddle vertical position
-        if (self.right_vel == 1 &&self.right_pos < 291)
+        if (self.right_vel == 1 && self.right_pos < 291)
             || (self.right_vel == -1 && self.right_pos >= 1) {
             self.right_pos += self.right_vel;
         }
@@ -160,7 +160,7 @@ impl App {
 }
 
 fn main() {
-    let opengl = OpenGL::V3_3;
+    let opengl = OpenGL::V3_2;
     let mut window: GlutinWindow = WindowSettings::new("Pong", [512, 342])
         .opengl(opengl)
         .exit_on_esc(true)
