@@ -3,134 +3,187 @@ extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
 
-use std::process;
-
-use piston::window::WindowSettings;
+use piston::window::{WindowSettings, Size};
 use piston::event_loop::{EventSettings, Events};
 use piston::input::{Button, Key, PressEvent, ReleaseEvent, RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 
+use graphics::{Transformed, Context};
 use glutin_window::GlutinWindow;
 use opengl_graphics::{GlGraphics, OpenGL};
 
-pub struct App {
-    gl: GlGraphics,
-    left_score: i32,
-    left_pos: i32,
-    left_vel: i32,
-    right_score: i32,
-    right_pos: i32,
-    right_vel: i32,
-    ball_x: i32,
-    ball_y: i32,
+const BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.8];
+const FOREGROUND_COLOR: [f32; 4] = [1.0, 1.0, 1.0, 0.8];
+const GAME_DIMS: Size = Size{width: 800, height: 600};
+const SCORE_LIMIT: i32 = 5;
+
+pub struct Paddle {
+    x: i32,
+    y: i32,
+    vel: i32,
+    width: i32,
+    height: i32,
+}
+
+impl Paddle {
+    fn new() -> Paddle {
+        Paddle {
+            x: 0,
+            y: 0,
+            vel: 0,
+            width: 30,
+            height: 150,
+        }
+    }
+
+    fn set_pos(&mut self, x: i32, y: i32) {
+        self.x = x;
+        self.y = y;
+    }
+
+    fn render(&mut self, c: Context, gl: &mut GlGraphics) {
+        let rect = graphics::rectangle::square(0.0, 0.0, self.height as f64);
+        graphics::rectangle(FOREGROUND_COLOR, rect, c.transform.trans(self.x as f64, self.y as f64), gl);
+    }
+}
+
+pub struct Ball {
+    radius: i32,
+    x: i32,
+    y: i32,
     vel_x: i32,
     vel_y: i32,
 }
 
-impl App {
-    fn new(opengl: OpenGL) -> App {
-        App {
+impl Ball {
+    fn new() -> Ball {
+        Ball {
+            x: 50,
+            y: 50,
+            vel_x: 2,
+            vel_y: 2,
+            radius: 20,
+        }
+    }
+
+    fn render(&mut self, c: Context, gl: &mut GlGraphics) {
+        let ball = graphics::ellipse::circle(0.0, 0.0, self.radius as f64);
+        graphics::ellipse(FOREGROUND_COLOR, ball, c.transform.trans(self.x as f64, self.y as f64), gl);
+    }
+
+    fn reset(&mut self, x: i32, y: i32) {
+        self.x = x;
+        self.y = y;
+    }
+}
+
+pub struct Game {
+    gl: GlGraphics,
+    left_score: i32,
+    right_score: i32,
+
+    left_paddle: Paddle,
+    right_paddle: Paddle,
+    ball: Ball,
+
+    width: i32,
+    height: i32,
+}
+
+impl Game {
+    fn new(opengl: OpenGL, size: Size) -> Game {
+        let mut left_paddle = Paddle::new();
+        let left_paddle_x = -left_paddle.height + left_paddle.width;
+        let left_paddle_y = (size.height as i32 / 2) - (left_paddle.height / 2);
+        // adjust left paddle's x pos to "hide" area of square > width
+        // adjust left paddle's y pos to middle of screen
+        left_paddle.set_pos(left_paddle_x, left_paddle_y);
+
+        let mut right_paddle = Paddle::new();
+        let right_paddle_x = size.width as i32 - right_paddle.width;
+        let right_paddle_y = (size.height as i32 / 2) - (right_paddle.height / 2);
+        // adjust right paddle's x pos to right of screen - width
+        // adjust right paddle's y pos to middle of screen
+        right_paddle.set_pos(right_paddle_x, right_paddle_y);
+
+        Game {
             gl: GlGraphics::new(opengl),
             left_score: 0,
-            left_pos: 1,
-            left_vel: 0,
             right_score: 0,
-            right_pos: 1,
-            right_vel: 0,
-            ball_x: 0,
-            ball_y: 0,
-            vel_x: 1,
-            vel_y: 1,
+
+
+            left_paddle,
+            right_paddle,
+            ball: Ball::new(),
+
+            width: size.width as i32,
+            height: size.height as i32,
         }
     }
 
     fn render(&mut self, args: &RenderArgs) {
-        use graphics::*;
+        let gl = &mut self.gl;
+        let ball = &mut self.ball;
+        let left_paddle = &mut self.left_paddle;
+        let right_paddle = &mut self.right_paddle;
 
-        const BACKGROUND: [f32; 4] = [0.0, 0.5, 0.5, 1.0];
-        const FOREGROUND: [f32; 4] = [0.0, 0.0, 1.0, 1.0];
+        gl.draw(args.viewport(), |c, gl| {
+            graphics::clear(BACKGROUND_COLOR, gl);
 
-        let left = rectangle::square(0.0, 0.0, 50.0);
-        let left_pos = self.left_pos as f64;
-
-        let right = rectangle::square(0.0, 0.0, 50.0);
-        let right_pos = self.right_pos as f64;
-
-        let ball = rectangle::square(0.0, 0.0, 10.0);
-        let ball_x = self.ball_x as f64;
-        let ball_y = self.ball_y as f64;
-
-        self.gl.draw(args.viewport(), |c, gl| {
-            clear(BACKGROUND, gl);
-
-            // left paddle
-            rectangle(FOREGROUND, left, c.transform.trans(-40.0, left_pos), gl);
-            // right paddle
-            rectangle(FOREGROUND, right, c.transform.trans(args.width as f64 - 10.0, right_pos), gl);
-            // ball
-            rectangle(FOREGROUND, ball, c.transform.trans(ball_x, ball_y), gl);
-
+            left_paddle.render(c, gl);
+            right_paddle.render(c, gl);
+            ball.render(c, gl);
         });
     }
 
     fn update(&mut self, _args: &UpdateArgs) {
-        // update left paddle vertical position
-        if (self.left_vel == 1 && self.left_pos < 291)
-            || (self.left_vel == -1 && self.left_pos >= 1) {
-            self.left_pos += self.left_vel;
-        }
+        self.ball.y += self.ball.vel_y;
+        self.ball.x += self.ball.vel_x;
 
-        // update right paddle vertical position
-        if (self.right_vel == 1 && self.right_pos < 291)
-            || (self.right_vel == -1 && self.right_pos >= 1) {
-            self.right_pos += self.right_vel;
-        }
+        // determine if ball collides with either paddle
+        if (self.ball.x - self.ball.radius <= self.left_paddle.width
+            && self.ball.y + self.ball.radius >= self.left_paddle.y && self.ball.y - self.ball.radius <= self.left_paddle.y + self.left_paddle.height)
+            || (self.ball.x + self.ball.radius >= self.width - self.right_paddle.width
+            && self.ball.y + self.ball.radius >= self.right_paddle.y && self.ball.y - self.ball.radius <= self.right_paddle.y + self.right_paddle.height) {
+            self.ball.vel_x = -self.ball.vel_x;
 
-        // update ball
-        self.ball_x += self.vel_x;
-
-        // determine if ball is horizontally right of our right-most paddle
-        if self.ball_x > 502 {
-            // if the ball's horizontal position is greater
-            // than screen width, reverse velocity
-            self.vel_x = -self.vel_x;
-
-            // determine if ball's y position does not collide with right paddle's y location
-            if self.ball_y < self.right_pos || self.ball_y > self.right_pos + 50 {
-                self.left_score += 1;
-
-                if self.left_score >= 5 {
-                    println!("Left wins!");
-                    process::exit(0);
-                }
-
-                // re-center ball when a point is scored
-                self.ball_x = 256;
-                self.ball_y = 171;
+            // determine if ball collides with top or bottom of paddle
+            if ((self.ball.y - self.ball.radius > self.right_paddle.y + self.right_paddle.height - 10
+                    || self.ball.y + self.ball.radius < self.right_paddle.y + 10)
+                    && self.ball.x + self.ball.radius >= self.width - self.right_paddle.width)
+                || ((self.ball.y - self.ball.radius > self.left_paddle.y + self.left_paddle.height - 10
+                    || self.ball.y + self.ball.radius < self.left_paddle.y + 10)
+                    && self.ball.x - self.ball.radius <= self.left_paddle.width) {
+                self.ball.vel_y = -self.ball.vel_y;
             }
         }
 
-        // determine if ball is horizontally left of our left-most paddle
-        if self.ball_x < 1 {
-            self.vel_x = -self.vel_x;
+        // reverse velocity if ball collides with ceiling or floor
+        if self.ball.y + self.ball.radius > self.height || self.ball.y < self.ball.radius {
+            self.ball.vel_y = -self.ball.vel_y;
+        }
 
-            // determine if ball's y position does not collide with left paddle's y location
-            if self.ball_y < self.left_pos || self.ball_y > self.left_pos + 50 {
+        // ball can score if it entirely makes it past the left or right game boundaries
+        if self.ball.x + self.ball.radius < 0 || self.ball.x - self.ball.radius > self.width {
+            if self.ball.x + self.ball.radius < 0 {
                 self.right_score += 1;
-
-                if self.right_score >= 5 {
-                    println!("Right wins!");
-                    process::exit(0);
-                }
-
-                // re-center ball when a point is scored
-                self.ball_x = 256;
-                self.ball_y = 171;
+                println!("Right scores! {} - {}", self.left_score, self.right_score);
+            } else {
+                self.left_score += 1;
+                println!("Left scores! {} - {}", self.left_score, self.right_score)
             }
+
+            self.ball.reset(self.width / 2, self.height / 2);
         }
 
-        self.ball_y += self.vel_y;
-        if self.ball_y > 232 || self.ball_y < 1 {
-            self.vel_y = -self.vel_y;
+
+        if self.left_score >= SCORE_LIMIT || self.right_score >= SCORE_LIMIT {
+            if self.left_score >= SCORE_LIMIT {
+                println!("Left wins! {} - {}", self.left_score, self.right_score);
+            } else {
+                println!("Right wins! {} - {}", self.left_score, self.right_score);
+            }
+
+            std::process::exit(0);
         }
     }
 
@@ -138,16 +191,16 @@ impl App {
         if let &Button::Keyboard(key) = args {
             match key {
                 Key::Up => {
-                    self.right_vel = -1;
+                    self.right_paddle.vel = -1;
                 }
                 Key::Down => {
-                    self.right_vel = 1;
+                    self.right_paddle.vel = 1;
                 }
                 Key::W => {
-                    self.left_vel = -1;
+                    self.left_paddle.vel = -1;
                 }
                 Key::S => {
-                    self.left_vel = 1;
+                    self.left_paddle.vel = 1;
                 }
                 _ => {}
             }
@@ -158,16 +211,16 @@ impl App {
         if let &Button::Keyboard(key) = args {
             match key {
                 Key::Up => {
-                    self.right_vel = 0;
+                    self.right_paddle.vel = 0;
                 }
                 Key::Down => {
-                    self.right_vel = 0;
+                    self.right_paddle.vel = 0;
                 }
                 Key::W => {
-                    self.left_vel = 0;
+                    self.left_paddle.vel = 0;
                 }
                 Key::S => {
-                    self.left_vel = 0;
+                    self.left_paddle.vel = 0;
                 }
                 _ => {}
             }
@@ -177,30 +230,30 @@ impl App {
 
 fn main() {
     let opengl = OpenGL::V3_2;
-    let mut window: GlutinWindow = WindowSettings::new("Pong", [512, 342])
+    let mut window: GlutinWindow = WindowSettings::new("Pong", GAME_DIMS)
         .opengl(opengl)
         .exit_on_esc(true)
         .build()
         .unwrap();
 
-    let mut app = App::new(opengl);
+    let mut game = Game::new(opengl, GAME_DIMS);
 
     let mut events = Events::new(EventSettings::new());
     while let Some(e) = events.next(&mut window) {
         if let Some(r) = e.render_args() {
-            app.render(&r);
+            game.render(&r);
         }
 
         if let Some(u) = e.update_args() {
-            app.update(&u);
+            game.update(&u);
         }
 
         if let Some(b) = e.press_args() {
-            app.press(&b);
+            game.press(&b);
         }
 
         if let Some(b) = e.release_args() {
-            app.release(&b);
+            game.release(&b);
         }
     }
 }
