@@ -1,4 +1,5 @@
-extern crate glutin_window;
+extern crate piston_window;
+extern crate sdl2_window;
 extern crate graphics;
 extern crate opengl_graphics;
 extern crate piston;
@@ -8,7 +9,8 @@ use piston::event_loop::{EventSettings, Events};
 use piston::input::{Button, Key, PressEvent, ReleaseEvent, RenderArgs, RenderEvent, UpdateArgs, UpdateEvent};
 
 use graphics::{Transformed, Context};
-use glutin_window::GlutinWindow;
+use piston_window::PistonWindow;
+use sdl2_window::Sdl2Window;
 use opengl_graphics::{GlGraphics, OpenGL};
 
 const BACKGROUND_COLOR: [f32; 4] = [0.0, 0.0, 0.0, 0.8];
@@ -20,6 +22,7 @@ pub struct Paddle {
     x: i32,
     y: i32,
     vel: i32,
+    vel_mod: i32,
     width: i32,
     height: i32,
 }
@@ -30,6 +33,7 @@ impl Paddle {
             x: 0,
             y: 0,
             vel: 0,
+            vel_mod: 2,
             width: 30,
             height: 150,
         }
@@ -139,6 +143,9 @@ impl Game {
         self.ball.y += self.ball.vel_y;
         self.ball.x += self.ball.vel_x;
 
+        self.left_paddle.y += self.left_paddle.vel * self.left_paddle.vel_mod;
+        self.right_paddle.y += self.right_paddle.vel * self.right_paddle.vel_mod;
+
         // determine if ball collides with either paddle
         if (self.ball.x - self.ball.radius <= self.left_paddle.width
             && self.ball.y + self.ball.radius >= self.left_paddle.y && self.ball.y - self.ball.radius <= self.left_paddle.y + self.left_paddle.height)
@@ -230,7 +237,7 @@ impl Game {
 
 fn main() {
     let opengl = OpenGL::V3_2;
-    let mut window: GlutinWindow = WindowSettings::new("Pong", GAME_DIMS)
+    let mut window: PistonWindow<Sdl2Window> = WindowSettings::new("Pong", GAME_DIMS)
         .opengl(opengl)
         .exit_on_esc(true)
         .build()
