@@ -143,8 +143,15 @@ impl Game {
         self.ball.y += self.ball.vel_y;
         self.ball.x += self.ball.vel_x;
 
-        self.left_paddle.y += self.left_paddle.vel * self.left_paddle.vel_mod;
-        self.right_paddle.y += self.right_paddle.vel * self.right_paddle.vel_mod;
+        if self.left_paddle.y + self.left_paddle.vel * self.left_paddle.vel_mod > 0
+            && self.left_paddle.y + self.left_paddle.height + self.left_paddle.vel * self.left_paddle.vel_mod < self.height {
+            self.left_paddle.y += self.left_paddle.vel * self.left_paddle.vel_mod;
+        }
+
+        if self.right_paddle.y + self.right_paddle.vel * self.right_paddle.vel_mod > 0
+            && self.right_paddle.y + self.right_paddle.height + self.right_paddle.vel * self.right_paddle.vel_mod < self.height {
+            self.right_paddle.y += self.right_paddle.vel * self.right_paddle.vel_mod;
+        }
 
         // determine if ball collides with either paddle
         if (self.ball.x - self.ball.radius <= self.left_paddle.width
@@ -153,19 +160,46 @@ impl Game {
             && self.ball.y + self.ball.radius >= self.right_paddle.y && self.ball.y - self.ball.radius <= self.right_paddle.y + self.right_paddle.height) {
             self.ball.vel_x = -self.ball.vel_x;
 
-            // determine if ball collides with top or bottom of paddle
-            if ((self.ball.y - self.ball.radius > self.right_paddle.y + self.right_paddle.height - 10
-                    || self.ball.y + self.ball.radius < self.right_paddle.y + 10)
-                    && self.ball.x + self.ball.radius >= self.width - self.right_paddle.width)
-                || ((self.ball.y - self.ball.radius > self.left_paddle.y + self.left_paddle.height - 10
-                    || self.ball.y + self.ball.radius < self.left_paddle.y + 10)
-                    && self.ball.x - self.ball.radius <= self.left_paddle.width) {
+
+            // determine if ball collides with top of right paddle
+            if self.ball.y + self.ball.radius < self.right_paddle.y + 10
+                && self.ball.x + self.ball.radius >= self.width - self.right_paddle.width {
+                self.ball.y -= (self.ball.y + self.ball.radius) - self.right_paddle.y + 1;
+                self.ball.vel_y = -self.ball.vel_y;
+            }
+
+            // determine if ball collides with bottom of right paddle
+            if self.ball.y - self.ball.radius > self.right_paddle.y + self.right_paddle.height - 10
+                && self.ball.x + self.ball.radius >= self.width - self.right_paddle.width {
+                self.ball.y += (self.right_paddle.y + self.right_paddle.height) - (self.ball.y - self.ball.radius) + 1;
+                self.ball.vel_y = -self.ball.vel_y;
+            }
+
+            // determine if ball collides with top of left paddle
+            if self.ball.y + self.ball.radius < self.left_paddle.y + 10
+                && self.ball.x - self.ball.radius <= self.left_paddle.width {
+                self.ball.y -= (self.ball.y + self.ball.radius) - self.left_paddle.y + 1;
+                self.ball.vel_y = -self.ball.vel_y;
+            }
+
+            // determine if ball collides with bottom of left paddle
+            if self.ball.y - self.ball.radius > self.left_paddle.y + self.left_paddle.height - 10
+                && self.ball.x - self.ball.radius <= self.left_paddle.width {
+                self.ball.y += (self.left_paddle.y + self.left_paddle.height) - (self.ball.y - self.ball.radius) + 1;
                 self.ball.vel_y = -self.ball.vel_y;
             }
         }
 
         // reverse velocity if ball collides with ceiling or floor
         if self.ball.y + self.ball.radius > self.height || self.ball.y < self.ball.radius {
+            if self.ball.y + self.ball.radius > self.height {
+                self.ball.y -= (self.ball.y + self.ball.radius) - self.height - 1;
+            }
+
+            if self.ball.y - self.ball.radius < 0 {
+                self.ball.y += (self.ball.y - self.ball.radius).abs() + 1;
+            }
+
             self.ball.vel_y = -self.ball.vel_y;
         }
 
@@ -179,6 +213,7 @@ impl Game {
                 println!("Left scores! {} - {}", self.left_score, self.right_score)
             }
 
+            self.ball.vel_x = -self.ball.vel_x;
             self.ball.reset(self.width / 2, self.height / 2);
         }
 
